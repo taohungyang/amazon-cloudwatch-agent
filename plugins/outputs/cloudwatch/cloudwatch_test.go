@@ -127,7 +127,7 @@ func TestProcessRollup(t *testing.T) {
 		},
 	}
 
-	actualDimensionList := cloudWatchOutput.ProcessRollup(rawDimension)
+	actualDimensionList := cloudWatchOutput.ProcessRollup(rawDimension, "")
 	expectedDimensionList := [][]*cloudwatch.Dimension{
 		{
 			{
@@ -179,7 +179,7 @@ func TestProcessRollup(t *testing.T) {
 		},
 	}
 
-	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension)
+	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension, "")
 	expectedDimensionList = [][]*cloudwatch.Dimension{
 		{
 			{
@@ -201,7 +201,7 @@ func TestProcessRollup(t *testing.T) {
 	cloudWatchOutput.RollupDimensions = [][]string{{"d1", "d2"}, {"d1"}, {}}
 	rawDimension = []*cloudwatch.Dimension{}
 
-	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension)
+	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension, "")
 	expectedDimensionList = [][]*cloudwatch.Dimension{
 		{},
 	}
@@ -223,7 +223,7 @@ func TestProcessRollup(t *testing.T) {
 		},
 	}
 
-	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension)
+	actualDimensionList = cloudWatchOutput.ProcessRollup(rawDimension, "")
 	expectedDimensionList = [][]*cloudwatch.Dimension{
 		{
 			{
@@ -455,6 +455,22 @@ func TestMetricConfigsRead(t *testing.T) {
 	expected = append(expected, mdc)
 
 	assert.Equal(t, expected, c.MetricConfigs)
+}
+
+func TestDroppingOriginMetrics(t *testing.T) {
+	contents := `[outputs.cloudwatch.drop_origin]
+	 					dropMetrics = ["cpu", "nvidia_smi"]
+	 				`
+	c, err := buildCloudWatchFromToml(contents)
+
+	assert.NoError(t, err)
+
+	expected := make(map[string]struct{})
+	expected["cpu"] = struct{}{}
+	expected["nvidia_smi"] = struct{}{}
+
+	assert.Equal(t, expected, GetDroppingOriginMetrics(c.DropOriginConfigs))
+
 }
 
 func TestMissMetricConfig(t *testing.T) {

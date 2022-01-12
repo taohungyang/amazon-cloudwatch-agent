@@ -2,6 +2,7 @@
   "metrics": {
     "metrics_collected": {
       "cpu": {
+        "drop_origin": true,
         "resources": [
           "*"
         ],
@@ -18,6 +19,7 @@
         }
       },
       "disk": {
+        "drop_origin": false,
         "resources": [
           "/",
           "/dev",

@@ -61,6 +61,7 @@ type CloudWatch struct {
 	MaxValuesPerDatum  int                      `toml:"max_values_per_datum"`
 	MetricConfigs      []MetricDecorationConfig `toml:"metric_decoration"`
 	RollupDimensions   [][]string               `toml:"rollup_dimensions"`
+	DropOriginConfigs  DropOriginConfig       	`toml:"drop_origin"`
 	Namespace          string                   `toml:"namespace"` // CloudWatch Metrics Namespace
 
 	Log telegraf.Logger `toml:"-"`
@@ -79,6 +80,7 @@ type CloudWatch struct {
 	retries                int
 	publisher              *publisher.Publisher
 	retryer                *retryer.LogThrottleRetryer
+	droppingOriginMetrics  map[string]struct{}
 }
 
 var sampleConfig = `
@@ -149,6 +151,9 @@ func (c *CloudWatch) Connect() error {
 
 	//Format unique roll up list
 	c.RollupDimensions = GetUniqueRollupList(c.RollupDimensions)
+
+	//Construct map(set) for metrics that dropping origin
+	c.droppingOriginMetrics = GetDroppingOriginMetrics(c.DropOriginConfigs)
 
 	c.svc = svc
 	c.retryer = logThrottleRetryer
@@ -413,7 +418,7 @@ func (c *CloudWatch) BuildMetricDatum(point telegraf.Metric) []*cloudwatch.Metri
 	}
 
 	rawDimensions := BuildDimensions(point.Tags())
-	dimensionsList := c.ProcessRollup(rawDimensions)
+	dimensionsList := c.ProcessRollup(rawDimensions, point.Name())
 	//https://pratheekadidela.in/2016/02/11/is-append-in-go-efficient/
 	//https://www.ardanlabs.com/blog/2013/08/understanding-slices-in-go-programming.html
 	var datums []*cloudwatch.MetricDatum
@@ -560,14 +565,18 @@ func BuildDimensions(mTags map[string]string) []*cloudwatch.Dimension {
 	return dimensions
 }
 
-func (c *CloudWatch) ProcessRollup(rawDimension []*cloudwatch.Dimension) [][]*cloudwatch.Dimension {
+func (c *CloudWatch) ProcessRollup(rawDimension []*cloudwatch.Dimension, metricName string) [][]*cloudwatch.Dimension {
 	rawDimensionMap := map[string]string{}
 	for _, v := range rawDimension {
 		rawDimensionMap[*v.Name] = *v.Value
 	}
 
 	targetDimensionsList := c.RollupDimensions
-	fullDimensionsList := [][]*cloudwatch.Dimension{rawDimension}
+	fullDimensionsList := [][]*cloudwatch.Dimension{}
+
+	if !c.isDroppingOrigin(metricName) || len(targetDimensionsList) == 0 {
+		fullDimensionsList = append(fullDimensionsList, rawDimension)
+	}
 
 	for _, targetDimensions := range targetDimensionsList {
 		i := 0
@@ -611,6 +620,11 @@ func GetUniqueRollupList(inputLists [][]string) [][]string {
 	}
 	log.Printf("I! cloudwatch: get unique roll up list %v", uniqueLists)
 	return uniqueLists
+}
+
+func (c *CloudWatch) isDroppingOrigin(metricName string) bool {
+	_, ok := c.droppingOriginMetrics[metricName]
+	return ok
 }
 
 func init() {

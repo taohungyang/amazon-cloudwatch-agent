@@ -8,6 +8,7 @@ import (
 	"github.com/aws/amazon-cloudwatch-agent/translator/jsonconfig/mergeJsonRule"
 	"github.com/aws/amazon-cloudwatch-agent/translator/jsonconfig/mergeJsonUtil"
 	parent "github.com/aws/amazon-cloudwatch-agent/translator/translate"
+	"github.com/aws/amazon-cloudwatch-agent/translator/translate/metrics/config"
 	"github.com/aws/amazon-cloudwatch-agent/translator/translate/util"
 )
 
@@ -51,8 +52,8 @@ func (m *Metrics) ApplyRule(input interface{}) (returnKey string, returnVal inte
 			if key != "" {
 				if key == OutputsKey {
 					outputPlugInfo = translator.MergeTwoUniqueMaps(outputPlugInfo, val.(map[string]interface{}))
-				} else if key == "metric_decoration" {
-					addDecorations(key, val, outputPlugInfo)
+				} else if config.ContainsKey(key) {
+					addCloudWatchOutputConfig(key, val, outputPlugInfo)
 				} else {
 					result[key] = val
 				}
@@ -69,8 +70,10 @@ func (m *Metrics) ApplyRule(input interface{}) (returnKey string, returnVal inte
 	return
 }
 
-func addDecorations(key string, val interface{}, outputPlugInfo map[string]interface{}) {
-	if len(val.([]interface{})) > 0 {
+func addCloudWatchOutputConfig(key string, val interface{}, outputPlugInfo map[string]interface{}) {
+	if val1, ok := val.([]interface{}); ok && len(val1) > 0 {
+		outputPlugInfo[key] = val
+	} else if val2, ok2 := val.(map[string][]string); ok2 && len(val2) > 0 {
 		outputPlugInfo[key] = val
 	}
 }
